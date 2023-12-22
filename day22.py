@@ -1,3 +1,4 @@
+from collections import defaultdict
 with open("inputs/22.txt", "r") as File:
     lines = [line[:-1] for line in File]
 
@@ -55,7 +56,11 @@ while (is_change):
                 grid3d[z1-1][y][x] = i
 
 essential_blocks = set()
-for block in blocks.values():
+supported_by = defaultdict(set)
+dependants = defaultdict(set)
+total_dependants = defaultdict(set) #values would fall without key
+
+for i, block in blocks.items():
     xs, ys, zs = block
     x1, x2 = xs
     y1, y2 = ys
@@ -64,9 +69,33 @@ for block in blocks.values():
     for x in range(x1, x2+1):
         for y in range(y1, y2+1):
             if (support := grid3d[z1-1][y][x]) > 0:
-                supports.add(support)
-    if len(supports) == 1:
-        essential_blocks.add(*supports)
+                supported_by[i].add(support)
+                dependants[support].add(i)
+    if len(supported_by[i]) == 1:
+        (sole_supporter,) = supported_by[i]
+        total_dependants[sole_supporter].add(i)
 
-ans_p1 = len(blocks) - len(essential_blocks)
+ans_p1 = len(blocks) - len(total_dependants)
 print(f"Part 1 answer: {ans_p1}")
+
+sorted_blocks = sorted(blocks, key=lambda block: blocks[block][2][1], reverse=True) #sort blocks from top to bottom
+for main_block in sorted_blocks:
+    total_deps = total_dependants[main_block].copy()
+    for total_dep in total_deps:
+        total_dependants[main_block] |= total_dependants[total_dep]
+    deps = dependants[main_block].copy()
+    for dep in deps:
+        dependants[main_block] |= dependants[dep]
+    is_change = True
+    while is_change:
+        is_change = False
+        pot_deps = dependants[main_block] - total_dependants[main_block]
+        for pot_dep in pot_deps:
+            remaining_supporters = supported_by[pot_dep] - total_dependants[main_block]
+            if remaining_supporters:
+                continue
+            is_change = True
+            total_dependants[main_block].add(pot_dep)
+    
+ans_p2 = sum((len(fallen) for fallen in total_dependants.values()))
+print(f"Part 2 answer: {ans_p2}")
