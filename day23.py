@@ -12,7 +12,7 @@ def in_grid(x, y) -> bool:
         return False
     return True
 
-dirs_p2 = ['N', 'E', 'S', 'W']
+dirs = ['N', 'E', 'S', 'W']
 dirs_p1 = {
     '.': ['N', 'E', 'S', 'W'],
     '^': ['N'],
@@ -20,7 +20,6 @@ dirs_p1 = {
     'v': ['S'],
     '<': ['W'],
 }
-opposite = {'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E'}
 
 def new_pos(x, y, dir):
     if dir == 'E':
@@ -36,7 +35,7 @@ for i, char in enumerate(grid[0]):
     if char == '.':
         break
 
-x0, y0 = i, 0
+x_start, y_start = i, 0
 
 for i, char in enumerate(grid[-1]):
     if char == '.':
@@ -44,83 +43,102 @@ for i, char in enumerate(grid[-1]):
 
 x_end, y_end = i, n_rows - 1
 
-#### Part 1
+def longest_walk(grid, is_part1):
+    '''return the length of the longest possible walk. For part1 you cannot go up slopes'''
+    ##Find all junctions
+    x0, y0 = x_start, y_start
+    junctions = [(x0, y0), (x_end, y_end)]
+    currents = [(x0, y0)]
+    new_currents = deepcopy(currents)
+    new_grid = deepcopy(grid)
+    new_grid[y0][x0] = 'O'
+    while new_currents:
+        new_currents = []
+        for current in currents:
+            x, y = current
+            tile = grid[y][x]
+            count_hashes = 0
+            for new_dir in dirs:
+                new_x, new_y = new_pos(x, y, new_dir)
+                if not in_grid(new_x, new_y):
+                    continue
+                new_tile = new_grid[new_y][new_x]
+                count_hashes += (new_tile == '#')
+                if is_part1 and new_dir not in dirs_p1[tile]:
+                    continue
+                if new_tile in '#O':
+                    continue
+                new_currents.append((new_x, new_y))
+                new_grid[new_y][new_x] = 'O'
+            if count_hashes <= 1:
+                junctions.append((x, y))
+        currents = deepcopy(new_currents)
+
+    #Find the distance to reach a junction from adjacent junctions
+    reachable_junctions = {}
+    for junction in junctions:
+        steps_to_junc = {}
+        steps = 0
+        x0, y0 = junction
+        if x0 == x_end and y0 == y_end:
+            continue
+        currents = [(x0, y0)]
+        new_currents = deepcopy(currents)
+        new_grid = deepcopy(grid)
+        new_grid[y0][x0] = 'O'
+        while new_currents:
+            steps += 1
+            new_currents = []
+            for current in currents:
+                x, y = current
+                tile = grid[y][x]
+                for new_dir in dirs:
+                    new_x, new_y = new_pos(x, y, new_dir)
+                    if not in_grid(new_x, new_y):
+                        continue
+                    new_tile = new_grid[new_y][new_x]
+                    if new_tile in '#O':
+                        continue
+                    if is_part1 and new_dir not in dirs_p1[tile]:
+                        continue
+                    new_grid[new_y][new_x] = 'O'
+                    if ((new_x, new_y)) in junctions:
+                        steps_to_junc[(new_x, new_y)] = steps
+                        continue
+                    new_currents.append((new_x, new_y))
+            currents = deepcopy(new_currents)
+        reachable_junctions[junction] = deepcopy(steps_to_junc)
+
+    #calculate the length of all paths
+    currents = [[0, (x_start, y_start)]]
+    new_currents = deepcopy(currents)
+    final_list = []
+    while new_currents:
+        new_currents = []
+        for current in currents:
+            steps = current[0]
+            junc = current[-1]
+            if junc == (x_end, y_end):
+                final_list.append(current)
+                continue
+            new_juncs = reachable_junctions[junc]
+            for new_junc in new_juncs:
+                if new_junc in current:
+                    continue
+                new_steps = steps + new_juncs[new_junc]
+                new_current = [new_steps] + current[1:] + [new_junc]
+                new_currents.append(new_current)
+        currents = new_currents
+    return max(l[0] for l in final_list)
+
 t1 = time.time()
-currents = [((x0, y0, 'S'),[])] #first tuple is position and direction, second is a list of previous junctions
-path_lengths = []
-steps = 0
-while (True):
-    new_currents = []
-    for current in currents:
-        x, y, dir = current[0]
-        juncs = current[1]
-        new_juncs = deepcopy(juncs)
-        if x == x_end and y == y_end:
-            path_lengths.append(steps)
-        tile = grid[y][x]
-        ultra_new_currents = [] #just for tiles reachable from this tile
-        for new_dir in dirs_p1[tile]:
-            if new_dir == opposite[dir]:
-                continue
-            new_x, new_y = new_pos(x, y, new_dir)
-            if not in_grid(new_x, new_y):
-                continue
-            if grid[new_y][new_x] == '#':
-                continue
-            if (new_x, new_y) in juncs:
-                continue
-            ultra_new_currents.append((new_x, new_y, new_dir))
-        if len(ultra_new_currents) > 1:
-            new_juncs.append((x, y))
-        for ultra_new_current in ultra_new_currents:
-            new_currents.append((ultra_new_current, new_juncs))
-    if not new_currents:
-        break
-    currents = deepcopy(new_currents)
-    steps += 1
-
+ans_p1 = longest_walk(grid, True)
 t2 = time.time()
-print(t2 - t1)
-ans_p1 = max(path_lengths)
+ans_p2 = longest_walk(grid, False)
+t3 = time.time()
+
 print(f"Part 1 answer: {ans_p1}")
-
-# #### Part 2
-# t1 = time.time()
-# currents = [((x0, y0, 'S'),[])] #first tuple is position and direction, second is a list of previous junctions
-# path_lengths = []
-# steps = 0
-# while (True):
-#     new_currents = []
-#     for current in currents:
-#         x, y, dir = current[0]
-#         juncs = current[1]
-#         new_juncs = deepcopy(juncs)
-#         if x == x_end and y == y_end:
-#             path_lengths.append(steps)
-#         tile = grid[y][x]
-#         ultra_new_currents = [] #just for tiles reachable from this tile
-#         for new_dir in dirs_p2:
-#             if new_dir == opposite[dir]:
-#                 continue
-#             new_x, new_y = new_pos(x, y, new_dir)
-#             if not in_grid(new_x, new_y):
-#                 continue
-#             if grid[new_y][new_x] == '#':
-#                 continue
-#             if (new_x, new_y) in juncs:
-#                 continue
-#             ultra_new_currents.append((new_x, new_y, new_dir))
-#         if len(ultra_new_currents) > 1:
-#             new_juncs.append((x, y))
-#         for ultra_new_current in ultra_new_currents:
-#             new_currents.append((ultra_new_current, new_juncs))
-#     if not new_currents:
-#         break
-#     currents = deepcopy(new_currents)
-#     steps += 1
-
-# t2 = time.time()
-# print(t2 - t1)
-# ans_p2 = max(path_lengths)
-# print(f"Part 2 answer: {ans_p2}")
-
+#print(t2 - t1)
+#print()
+print(f"Part 2 answer: {ans_p2}")
+#print(t3 - t2)
